@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Calcolatrice">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<title>Calcolatrice</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+:root{--gap:12px;--pad:21px;
+--btn:min(calc((min(100vw,430px) - 2*var(--pad) - 3*var(--gap))/4),calc((100dvh - 290px - 4*var(--gap))/5))}
+html,body{height:100%;background:#000;color:#fff;overflow:hidden;overscroll-behavior:none;touch-action:manipulation;
+font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif}
+.app{height:100dvh;max-width:430px;margin:0 auto;display:flex;flex-direction:column;
+padding-bottom:calc(env(safe-area-inset-bottom,0px) + 10px)}
+.topbar{display:flex;justify-content:space-between;padding:calc(env(safe-area-inset-top,0px) + 14px) var(--pad) 0}
+.tb{width:44px;height:44px;border-radius:50%;background:#2c2c2e;display:flex;align-items:center;justify-content:center}
+.tb svg{width:22px;height:22px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.display-area{flex:1;position:relative;display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-end;
+padding:0 18px 8px;overflow:hidden;min-height:0}
+#expr{width:100%;text-align:right;white-space:nowrap;overflow:hidden;color:#9a9a9f;font-weight:400;line-height:1.25;font-size:26px}
+#display{display:inline-block;white-space:nowrap;font-size:72px;font-weight:400;line-height:1.05;letter-spacing:-1px}
+.keypad{display:grid;grid-template-columns:repeat(4,var(--btn));gap:var(--gap);justify-content:center;padding-top:6px}
+.btn{width:var(--btn);height:var(--btn);border:0;border-radius:50%;display:flex;align-items:center;justify-content:center;
+font-family:inherit;font-size:calc(var(--btn)*.46);font-weight:400;color:#fff;background:#333;cursor:pointer;outline:none;
+transition:background-color .4s ease,color .2s ease}
+.btn.pressed{transition:none}
+.num.pressed{background:#737373}
+.func{background:#505050;font-size:calc(var(--btn)*.42)}
+.func.pressed{background:#8a8a8a}
+.op{background:#ff9f0a}
+.op.pressed{background:#ffc785}
+.op.active{background:#fff;color:#ff9f0a}
+.op.active.pressed{background:#e8e8e8}
+.btn svg{width:calc(var(--btn)*.4);height:calc(var(--btn)*.4);fill:none;stroke:currentColor;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round}
+.btn svg .f{fill:currentColor;stroke:none}
+
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.85);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+display:none;align-items:center;justify-content:center;padding:16px;z-index:100}
+.modal.open{display:flex}
+.card{background:#1c1c1e;border:1px solid #2c2c2e;border-radius:24px;width:100%;max-width:400px;max-height:90dvh;overflow-y:auto;
+padding:20px;display:flex;flex-direction:column;gap:16px}
+.head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2c2c2e;padding-bottom:12px}
+.title{font-size:18px;font-weight:600}
+.sub{font-size:12px;color:#8e8e93}
+.pill{background:#2c2c2e;color:#fff;border:0;border-radius:9999px;padding:6px 14px;font-size:14px;font-weight:500;cursor:pointer}
+.preview{background:#2c2c2e;border-radius:16px;padding:14px;display:flex;justify-content:space-between;align-items:center}
+.lbl{font-size:11px;color:#8e8e93;margin-bottom:2px}
+.val{font-size:20px;font-weight:600;color:#ff9f0a;font-variant-numeric:tabular-nums}
+.badge{font-size:12px;padding:4px 10px;border-radius:9999px;background:#3a3a3c;font-weight:500}
+.badge.armed{background:rgba(255,159,10,.25);color:#ff9f0a}
+.sec{font-size:12px;color:#8e8e93;font-weight:600;margin-bottom:8px}
+.list{display:flex;flex-direction:column;gap:8px}
+.opt{background:#2c2c2e;border:1.5px solid #3a3a3c;border-radius:14px;padding:10px 14px;color:#fff;text-align:left;cursor:pointer;
+display:flex;justify-content:space-between;align-items:center;font-family:inherit}
+.opt.sel,.chip.sel{border-color:#ff9f0a;background:rgba(255,159,10,.12)}
+.opt b{display:block;font-size:14px;font-weight:500}
+.opt small{display:block;font-size:11px;color:#8e8e93;margin-top:2px}
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.chip{background:#2c2c2e;border:1.5px solid #3a3a3c;border-radius:12px;padding:10px 6px;color:#fff;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit}
+.chip.sel{color:#ff9f0a}
+.demo{background:#ff9f0a;color:#000;border:0;border-radius:14px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+.guide{background:rgba(44,44,46,.5);border-radius:14px;padding:12px;font-size:12px;line-height:1.45;color:#d1d1d6}
+.guide ol{padding-left:18px;margin-top:6px;display:flex;flex-direction:column;gap:4px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="tb" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></svg></div>
+    <div class="tb" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M8.5 7.5h7M9 12h.01M12 12h.01M15 12h.01M9 16h.01M12 16h.01M15 16h.01"/></svg></div>
+  </div>
+  <div id="area" class="display-area">
+    <div id="expr">&nbsp;</div>
+    <div id="display">0</div>
+  </div>
+  <div class="keypad">
+    <button class="btn func" data-a="back" aria-label="Cancella"><svg viewBox="0 0 40 40"><path d="M4 20L14 8h19a3 3 0 0 1 3 3v18a3 3 0 0 1-3 3H14z"/><path d="M19 15l10 10M29 15L19 25"/></svg></button>
+    <button id="clear" class="btn func" data-a="clear">AC</button>
+    <button class="btn func" data-a="percent">%</button>
+    <button class="btn op" data-op="/" aria-label="Dividi"><svg viewBox="0 0 40 40"><path d="M7 20h26"/><circle class="f" cx="20" cy="9" r="2.8"/><circle class="f" cx="20" cy="31" r="2.8"/></svg></button>
+
+    <button class="btn num" data-d="7">7</button>
+    <button class="btn num" data-d="8">8</button>
+    <button class="btn num" data-d="9">9</button>
+    <button class="btn op" data-op="*" aria-label="Moltiplica"><svg viewBox="0 0 40 40"><path d="M9 9l22 22M31 9L9 31"/></svg></button>
+
+    <button class="btn num" data-d="4">4</button>
+    <button class="btn num" data-d="5">5</button>
+    <button class="btn num" data-d="6">6</button>
+    <button class="btn op" data-op="-" aria-label="Sottrai"><svg viewBox="0 0 40 40"><path d="M7 20h26"/></svg></button>
+
+    <button class="btn num" data-d="1">1</button>
+    <button class="btn num" data-d="2">2</button>
+    <button class="btn num" data-d="3">3</button>
+    <button class="btn op" data-op="+" aria-label="Somma"><svg viewBox="0 0 40 40"><path d="M20 7v26M7 20h26"/></svg></button>
+
+    <button class="btn num" data-a="sign" aria-label="Cambia segno"><svg viewBox="0 0 40 40"><path d="M5 12h12M11 6v12M23 34h12M27 7L15 33" stroke-width="3"/></svg></button>
+    <button class="btn num" data-d="0">0</button>
+    <button class="btn num" data-a="decimal">,</button>
+    <button class="btn op" data-a="equals" aria-label="Uguale"><svg viewBox="0 0 40 40"><path d="M7 14h26M7 26h26"/></svg></button>
+  </div>
+</div>
+
+<div id="modal" class="modal">
+  <div class="card">
+    <div class="head">
+      <div><div class="title">Impostazioni magia</div><div class="sub">Menu segreto per il prestigiatore</div></div>
+      <button id="close" class="pill">Chiudi</button>
+    </div>
+    <div class="preview">
+      <div><div class="lbl">Risultato finale previsto</div><div id="p-target" class="val">0</div></div>
+      <div id="p-status" class="badge">Normale</div>
+    </div>
+    <div>
+      <div class="sec">Formato data e ora</div>
+      <div class="list">
+        <button type="button" class="opt fmt" data-f="DDMMHHMM"><span><b>GGMMOOMM (8 cifre)</b><small>Consigliato, es. 25.111.941</small></span></button>
+        <button type="button" class="opt fmt" data-f="DDMMYYHHMM"><span><b>GGMMAAOOMM (10 cifre)</b><small>Serve un prodotto sopra 2,5 miliardi (4 numeri)</small></span></button>
+        <button type="button" class="opt fmt" data-f="DDMMYYYYHHMM"><span><b>GGMMAAAAOOMM (12 cifre)</b><small>Serve un prodotto sopra 250 miliardi (5 numeri)</small></span></button>
+      </div>
+    </div>
+    <div>
+      <div class="sec">Anticipo orologio</div>
+      <div class="chips">
+        <button type="button" class="chip off" data-o="0">+0 min</button>
+        <button type="button" class="chip off" data-o="1">+1 min</button>
+        <button type="button" class="chip off" data-o="2">+2 min</button>
+      </div>
+    </div>
+    <div>
+      <div class="sec">Quando compare il numero dopo il −</div>
+      <div class="chips" style="grid-template-columns:1fr 1fr">
+        <button type="button" class="chip rv" data-r="tap">Al primo tocco</button>
+        <button type="button" class="chip rv" data-r="instant">Subito</button>
+      </div>
+    </div>
+    <button type="button" id="demo" class="demo">Carica esempio (456 × 789 × 321 −)</button>
+    <div class="guide">
+      <b>Come si usa</b>
+      <ol>
+        <li>Fai scegliere tre numeri, con × tra l’uno e l’altro, e premi − dopo il terzo.</li>
+        <li>Da quel momento la tastiera non scrive più: la persona tocca cifre a caso e compare il numero già pronto.</li>
+        <li>Detta quel numero a tutti: sulle loro calcolatrici faranno gli stessi tre numeri × e poi − quel numero.</li>
+        <li>Premi = e appare data e ora attuali.</li>
+      </ol>
+      <div style="margin-top:8px;color:#8e8e93">Il valore prima del − deve superare il numero previsto. Mentre il trucco è armato, tastiera, operatori, AC e tre tocchi sul display sono bloccati. Per uscire tieni premuto AC per 1,5 secondi.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var SYM = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+  var cur = '0', base = null, baseOp = null, term = null, termOp = null, snap = null;
+  var waiting = false, justEq = false, lastOp = null, lastVal = null, activeOp = null;
+  var armed = false, revealed = false, forceDigits = '', armedTotal = 0;
+  var expr = [], doneLine = '';
+
+  var KEY = 'ios_magic_calc_v6';
+  var settings = { format: 'DDMMHHMM', minuteOffset: 0, reveal: 'tap' };
+  try { var sv = localStorage.getItem(KEY); if (sv) settings = Object.assign(settings, JSON.parse(sv)); } catch (e) {}
+
+  var $ = function (id) { return document.getElementById(id); };
+  var displayEl = $('display'), exprEl = $('expr'), areaEl = $('area'), clearEl = $('clear'), modalEl = $('modal');
+  var opBtns = document.querySelectorAll('.btn[data-op]');
+
+  function getTarget() {
+    var d = new Date();
+    d.setMinutes(d.getMinutes() + Number(settings.minuteOffset || 0));
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    var y = String(d.getFullYear());
+    var s = p(d.getDate()) + p(d.getMonth() + 1);
+    if (settings.format === 'DDMMYYYYHHMM') s += y;
+    else if (settings.format === 'DDMMYYHHMM') s += y.slice(2);
+    s += p(d.getHours()) + p(d.getMinutes());
+    return parseInt(s, 10);
+  }
+
+  function sci(n) {
+    var parts = n.toExponential(4).split('e'), m = parts[0], e = parts[1].replace('+', '');
+    if (m.indexOf('.') > -1) m = m.replace(/0+$/, '').replace(/\.$/, '');
+    return m + 'e' + e;
+  }
+  function numToStr(n) {
+    if (!isFinite(n)) return 'Errore';
+    if (n === 0) return '0';
+    var a = Math.abs(n);
+    if (Number.isInteger(n) && a < 1e15) return String(n);
+    if (a >= 999999999.5 || a < 1e-8) return sci(n);
+    var s = n.toPrecision(9);
+    if (s.indexOf('e') > -1) return sci(n);
+    if (s.indexOf('.') > -1) s = s.replace(/0+$/, '').replace(/\.$/, '');
+    return s;
+  }
+  function fmtDisplay(s) {
+    if (s === 'Errore') return s;
+    if (s.indexOf('e') > -1) return s.replace('.', ',');
+    var neg = s.charAt(0) === '-', u = neg ? s.slice(1) : s, p = u.split('.');
+    var i = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return (neg ? '-' : '') + i + (p.length > 1 ? ',' + p[1] : '');
+  }
+
+  function update() {
+    var fb = document.querySelector('.btn');
+    var bs = Math.max(56, Math.min(100, Math.round((fb.offsetWidth || 78) * 1.1)));
+    displayEl.textContent = justEq ? fmtDisplay(cur) : expr.join('') + (waiting ? '' : fmtDisplay(cur));
+    displayEl.style.fontSize = bs + 'px';
+    var cs = getComputedStyle(areaEl);
+    var avail = areaEl.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    var w = displayEl.offsetWidth;
+    if (w > avail && w > 0) displayEl.style.fontSize = Math.max(30, Math.floor(bs * avail / w)) + 'px';
+
+    var line = justEq ? doneLine : '';
+    exprEl.style.fontSize = Math.round(bs * 0.3) + 'px';
+    exprEl.textContent = line || '\u00a0';
+    var s = line;
+    while (exprEl.scrollWidth > exprEl.clientWidth && s.length > 2) { s = s.slice(1); exprEl.textContent = '…' + s; }
+
+    clearEl.textContent = (!justEq && cur !== '0' && cur !== 'Errore') ? 'C' : 'AC';
+    opBtns.forEach(function (b) { b.classList.toggle('active', activeOp === b.dataset.op); });
+  }
+
+  function exec(a, b, op) {
+    switch (op) {
+      case '+': return a + b;
+      case '-': return a - b;
+      case '*': return a * b;
+      case '/': return b === 0 ? NaN : a / b;
+    }
+    return b;
+  }
+
+  function clearChain() { base = baseOp = term = termOp = snap = null; }
+  function setResult(r) {
+    cur = numToStr(r);
+    waiting = false; justEq = true; activeOp = null;
+    update();
+  }
+  function resetAll() {
+    cur = '0'; clearChain(); expr = []; doneLine = '';
+    waiting = false; justEq = false; lastOp = lastVal = null; activeOp = null;
+    armed = false; revealed = false; forceDigits = '';
+    update();
+  }
+
+  /* ---------- il trucco ---------- */
+  function reveal() {
+    if (revealed) return;
+    revealed = true; cur = forceDigits; waiting = false; activeOp = null;
+    update();
+  }
+  function tryArm(total) {
+    var target = getTarget();
+    if (Number.isInteger(total) && total > target) {
+      armed = true; revealed = false;
+      forceDigits = String(total - target);
+      armedTotal = total;
+      if (settings.reveal === 'instant') reveal();
+    }
+  }
+
+  /* ---------- input ---------- */
+  function inputDigit(d) {
+    if (armed) { reveal(); return; }
+    if (justEq) { cur = d; justEq = false; }
+    else if (waiting) { cur = d; waiting = false; }
+    else {
+      if (cur.replace(/[^0-9]/g, '').length >= 9) return;
+      if (cur === '0') cur = d;
+      else if (cur === '-0') cur = '-' + d;
+      else cur += d;
+    }
+    activeOp = null;
+    update();
+  }
+
+  function inputDecimal() {
+    if (armed) { reveal(); return; }
+    if (cur === 'Errore') return;
+    if (justEq || waiting) { cur = '0.'; justEq = false; waiting = false; }
+    else if (cur.indexOf('.') === -1 && cur.indexOf('e') === -1) {
+      if (cur.replace(/[^0-9]/g, '').length >= 9) return;
+      cur += '.';
+    }
+    activeOp = null;
+    update();
+  }
+
+  function pressOperator(op) {
+    if (armed || cur === 'Errore') return;
+    var level = (op === '*' || op === '/') ? 2 : 1;
+    if (justEq) { justEq = false; lastOp = lastVal = null; expr = []; doneLine = ''; }
+    var v = parseFloat(cur), replaced = false;
+
+    if (waiting && (baseOp !== null || termOp !== null)) {
+      replaced = true;
+      if (termOp !== null) {
+        if (level === 2) { termOp = op; activeOp = op; expr[expr.length - 1] = SYM[op]; update(); return; }
+        termOp = null; v = term;
+      } else {
+        if (level === 1) {
+          baseOp = op; activeOp = op; expr[expr.length - 1] = SYM[op];
+          if (op === '-') tryArm(base);
+          update(); return;
+        }
+        base = snap.base; baseOp = snap.baseOp; term = snap.term; termOp = op;
+        cur = numToStr(term); activeOp = op; expr[expr.length - 1] = SYM[op];
+        update(); return;
+      }
+    }
+
+    var t = termOp !== null ? exec(term, v, termOp) : v, shown;
+    if (level === 2) { term = t; termOp = op; shown = t; }
+    else {
+      snap = { base: base, baseOp: baseOp, term: t };
+      shown = baseOp !== null ? exec(base, t, baseOp) : t;
+      base = shown; baseOp = op; term = null; termOp = null;
+    }
+    if (!isFinite(shown)) { resetAll(); cur = 'Errore'; justEq = true; update(); return; }
+    if (replaced) expr[expr.length - 1] = SYM[op];
+    else expr.push(fmtDisplay(cur), SYM[op]);
+    cur = numToStr(shown); waiting = true; activeOp = op;
+    if (level === 1 && op === '-') tryArm(shown);
+    update();
+  }
+
+  function pressEquals() {
+    if (armed) {
+      var diff = Number(forceDigits), res = armedTotal - diff;
+      doneLine = expr.join('') + fmtDisplay(forceDigits);
+      armed = false; revealed = false; forceDigits = '';
+      expr = []; clearChain(); lastOp = '-'; lastVal = diff;
+      setResult(res);
+      return;
+    }
+    if (cur === 'Errore') return;
+    var v = parseFloat(cur);
+    if (baseOp === null && termOp === null) {
+      if (lastOp !== null) {
+        doneLine = fmtDisplay(cur) + SYM[lastOp] + fmtDisplay(numToStr(lastVal));
+        setResult(exec(v, lastVal, lastOp));
+      }
+      return;
+    }
+    var t;
+    if (termOp !== null) { t = exec(term, v, termOp); lastOp = termOp; }
+    else { t = v; lastOp = baseOp; }
+    lastVal = v;
+    doneLine = expr.join('') + fmtDisplay(cur);
+    var total = baseOp !== null ? exec(base, t, baseOp) : t;
+    clearChain(); expr = [];
+    setResult(total);
+  }
+
+  function handleClear() {
+    if (armed) return;
+    if (clearEl.textContent === 'C') { cur = '0'; waiting = false; update(); }
+    else resetAll();
+  }
+
+  function toggleSign() {
+    if (armed || cur === 'Errore') return;
+    if (waiting) { cur = '-0'; waiting = false; activeOp = null; }
+    else cur = cur.charAt(0) === '-' ? cur.slice(1) : '-' + cur;
+    update();
+  }
+
+  function inputPercent() {
+    if (armed || cur === 'Errore') return;
+    var v = parseFloat(cur);
+    if (isNaN(v)) return;
+    if (baseOp !== null && termOp === null && base !== null && (baseOp === '+' || baseOp === '-')) v = base * v / 100;
+    else v = v / 100;
+    cur = numToStr(v); waiting = false; activeOp = null;
+    update();
+  }
+
+  function deleteLast() {
+    if (armed || justEq || waiting || cur === 'Errore' || cur.indexOf('e') > -1) return;
+    cur = cur.slice(0, -1);
+    if (cur === '' || cur === '-') cur = '0';
+    update();
+  }
+
+  /* ---------- eventi ---------- */
+  document.querySelectorAll('.btn').forEach(function (b) {
+    var up = function () { setTimeout(function () { b.classList.remove('pressed'); }, 70); };
+    b.addEventListener('pointerdown', function () { b.classList.add('pressed'); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { b.addEventListener(ev, up); });
+    b.addEventListener('click', function () {
+      var d = b.dataset.d, op = b.dataset.op, a = b.dataset.a;
+      if (d !== undefined) inputDigit(d);
+      else if (op !== undefined) pressOperator(op);
+      else if (a === 'clear') handleClear();
+      else if (a === 'back') deleteLast();
+      else if (a === 'sign') toggleSign();
+      else if (a === 'percent') inputPercent();
+      else if (a === 'decimal') inputDecimal();
+      else if (a === 'equals') pressEquals();
+    });
+  });
+
+  window.addEventListener('keydown', function (e) {
+    if (modalEl.classList.contains('open')) return;
+    var k = e.key;
+    if (k >= '0' && k <= '9') inputDigit(k);
+    else if (k === ',' || k === '.') inputDecimal();
+    else if (k === '+' || k === '-') pressOperator(k);
+    else if (k === '*' || k === 'x' || k === 'X') pressOperator('*');
+    else if (k === '/') { e.preventDefault(); pressOperator('/'); }
+    else if (k === 'Enter' || k === '=') { e.preventDefault(); pressEquals(); }
+    else if (k === 'Backspace') deleteLast();
+    else if (k === 'Escape') handleClear();
+  });
+
+  document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  var sx = 0, sy = 0;
+  areaEl.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+  areaEl.addEventListener('touchend', function (e) {
+    var t = e.changedTouches[0];
+    if (Math.abs(t.clientX - sx) > 30 && Math.abs(t.clientY - sy) < 30) deleteLast();
+  }, { passive: true });
+
+  /* menu segreto: tre tocchi sul display (non a trucco armato) o pressione lunga su AC */
+  var taps = [];
+  areaEl.addEventListener('click', function () {
+    if (armed) return;
+    var n = Date.now();
+    taps.push(n);
+    taps = taps.filter(function (t) { return n - t < 800; });
+    if (taps.length >= 3) { taps = []; openSettings(); }
+  });
+  var hold = null;
+  clearEl.addEventListener('pointerdown', function () {
+    hold = setTimeout(function () { if (armed) resetAll(); openSettings(); }, 1500);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) {
+    clearEl.addEventListener(ev, function () { clearTimeout(hold); });
+  });
+
+  function openSettings() { refreshSettings(); modalEl.classList.add('open'); }
+  $('close').addEventListener('click', function () { modalEl.classList.remove('open'); });
+  modalEl.addEventListener('click', function (e) { if (e.target === modalEl) modalEl.classList.remove('open'); });
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch (e) {}
+    refreshSettings(); update();
+  }
+  function refreshSettings() {
+    $('p-target').textContent = fmtDisplay(String(getTarget()));
+    var st = $('p-status');
+    st.textContent = armed ? 'Armato' : 'Normale';
+    st.classList.toggle('armed', armed);
+    document.querySelectorAll('.fmt').forEach(function (b) { b.classList.toggle('sel', b.dataset.f === settings.format); });
+    document.querySelectorAll('.off').forEach(function (b) { b.classList.toggle('sel', Number(b.dataset.o) === Number(settings.minuteOffset)); });
+    document.querySelectorAll('.rv').forEach(function (b) { b.classList.toggle('sel', b.dataset.r === settings.reveal); });
+  }
+  document.querySelectorAll('.fmt').forEach(function (b) { b.addEventListener('click', function () { settings.format = b.dataset.f; save(); }); });
+  document.querySelectorAll('.off').forEach(function (b) { b.addEventListener('click', function () { settings.minuteOffset = Number(b.dataset.o); save(); }); });
+  document.querySelectorAll('.rv').forEach(function (b) { b.addEventListener('click', function () { settings.reveal = b.dataset.r; save(); }); });
+
+  $('demo').addEventListener('click', function () {
+    modalEl.classList.remove('open');
+    resetAll();
+    '456'.split('').forEach(inputDigit); pressOperator('*');
+    '789'.split('').forEach(inputDigit); pressOperator('*');
+    '321'.split('').forEach(inputDigit); pressOperator('-');
+  });
+
+  window.addEventListener('resize', update);
+  window.addEventListener('load', update);
+  update();
+})();
+</script>
+</body>
+</html>
