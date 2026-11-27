@@ -125,7 +125,7 @@ display:flex;justify-content:space-between;align-items:center;font-family:inheri
       </div>
     </div>
     <div>
-      <div class="sec">Anticipo orologio</div>
+      <div class="sec">Anticipo orologio (oltre alla regola dei 10 secondi)</div>
       <div class="chips">
         <button type="button" class="chip off" data-o="0">+0 min</button>
         <button type="button" class="chip off" data-o="1">+1 min</button>
@@ -139,6 +139,15 @@ display:flex;justify-content:space-between;align-items:center;font-family:inheri
         <button type="button" class="chip rv" data-r="instant">Subito</button>
       </div>
     </div>
+    <div>
+      <div class="sec">Blocco del = a schermo in giù</div>
+      <div class="chips" style="grid-template-columns:1fr 1fr">
+        <button type="button" class="chip fd" data-l="true">Attivo</button>
+        <button type="button" class="chip fd" data-l="false">Disattivo</button>
+      </div>
+      <button type="button" id="sensor" class="chip" style="width:100%;margin-top:8px">Attiva sensore</button>
+      <div id="sensor-status" class="sub" style="margin-top:6px"></div>
+    </div>
     <button type="button" id="demo" class="demo">Carica esempio (456 × 789 × 321 −)</button>
     <div class="guide">
       <b>Come si usa</b>
@@ -148,7 +157,7 @@ display:flex;justify-content:space-between;align-items:center;font-family:inheri
         <li>Detta quel numero a tutti: sulle loro calcolatrici faranno gli stessi tre numeri × e poi − quel numero.</li>
         <li>Premi = e appare data e ora attuali.</li>
       </ol>
-      <div style="margin-top:8px;color:#8e8e93">Il valore prima del − deve superare il numero previsto. Mentre il trucco è armato, tastiera, operatori, AC e tre tocchi sul display sono bloccati. Per uscire tieni premuto AC per 1,5 secondi.</div>
+      <div style="margin-top:8px;color:#8e8e93">Il valore prima del − deve superare il numero previsto. Mentre il trucco è armato, tastiera, operatori, AC e tre tocchi sul display sono bloccati. Per uscire tieni premuto AC per 1,5 secondi. Se mancano 10 secondi o meno al cambio minuto, viene usato già il minuto dopo.</div>
     </div>
   </div>
 </div>
@@ -161,9 +170,10 @@ display:flex;justify-content:space-between;align-items:center;font-family:inheri
   var waiting = false, justEq = false, lastOp = null, lastVal = null, activeOp = null;
   var armed = false, revealed = false, forceDigits = '', armedTotal = 0;
   var expr = [], doneLine = '';
+  var faceDown = false, sensorOn = false;
 
   var KEY = 'ios_magic_calc_v6';
-  var settings = { format: 'DDMMHHMM', minuteOffset: 0, reveal: 'tap' };
+  var settings = { format: 'DDMMHHMM', minuteOffset: 0, reveal: 'tap', faceDownLock: true };
   try { var sv = localStorage.getItem(KEY); if (sv) settings = Object.assign(settings, JSON.parse(sv)); } catch (e) {}
 
   var $ = function (id) { return document.getElementById(id); };
@@ -172,6 +182,7 @@ display:flex;justify-content:space-between;align-items:center;font-family:inheri
 
   function getTarget() {
     var d = new Date();
+    if (d.getSeconds() >= 50) d.setMinutes(d.getMinutes() + 1);
     d.setMinutes(d.getMinutes() + Number(settings.minuteOffset || 0));
     var p = function (n) { return String(n).padStart(2, '0'); };
     var y = String(d.getFullYear());
@@ -250,8 +261,13 @@ display:flex;justify-content:space-between;align-items:center;font-family:inheri
   }
 
   /* ---------- il trucco ---------- */
+  function refreshForce() {
+    var d = armedTotal - getTarget();
+    if (d > 0) forceDigits = String(d);
+  }
   function reveal() {
     if (revealed) return;
+    refreshForce();
     revealed = true; cur = forceDigits; waiting = false; activeOp = null;
     update();
   }
@@ -332,6 +348,8 @@ display:flex;justify-content:space-between;align-items:center;font-family:inheri
 
   function pressEquals() {
     if (armed) {
+      if (faceDown && settings.faceDownLock) return;
+      if (!revealed) refreshForce();
       var diff = Number(forceDigits), res = armedTotal - diff;
       doneLine = expr.join('') + fmtDisplay(forceDigits);
       armed = false; revealed = false; forceDigits = '';
@@ -461,10 +479,31 @@ display:flex;justify-content:space-between;align-items:center;font-family:inheri
     document.querySelectorAll('.fmt').forEach(function (b) { b.classList.toggle('sel', b.dataset.f === settings.format); });
     document.querySelectorAll('.off').forEach(function (b) { b.classList.toggle('sel', Number(b.dataset.o) === Number(settings.minuteOffset)); });
     document.querySelectorAll('.rv').forEach(function (b) { b.classList.toggle('sel', b.dataset.r === settings.reveal); });
+    document.querySelectorAll('.fd').forEach(function (b) { b.classList.toggle('sel', (b.dataset.l === 'true') === !!settings.faceDownLock); });
+    updateSensorText();
   }
   document.querySelectorAll('.fmt').forEach(function (b) { b.addEventListener('click', function () { settings.format = b.dataset.f; save(); }); });
   document.querySelectorAll('.off').forEach(function (b) { b.addEventListener('click', function () { settings.minuteOffset = Number(b.dataset.o); save(); }); });
   document.querySelectorAll('.rv').forEach(function (b) { b.addEventListener('click', function () { settings.reveal = b.dataset.r; save(); }); });
+  document.querySelectorAll('.fd').forEach(function (b) { b.addEventListener('click', function () { settings.faceDownLock = b.dataset.l === 'true'; save(); }); });
+
+  /* sensore: schermo in giù quando l’asse uscente dallo schermo punta verso il basso */
+  function updateSensorText() {
+    $('sensor-status').textContent = sensorOn ? 'Sensore attivo, schermo in ' + (faceDown ? 'giù' : 'su') : 'Sensore non attivo: tocca “Attiva sensore”';
+  }
+  function onOrient(e) {
+    if (e.beta == null || e.gamma == null) return;
+    sensorOn = true;
+    faceDown = Math.cos(e.beta * Math.PI / 180) * Math.cos(e.gamma * Math.PI / 180) < -0.6;
+    if (modalEl.classList.contains('open')) updateSensorText();
+  }
+  window.addEventListener('deviceorientation', onOrient);
+  $('sensor').addEventListener('click', function () {
+    var D = window.DeviceOrientationEvent;
+    if (D && typeof D.requestPermission === 'function') {
+      D.requestPermission().then(updateSensorText).catch(updateSensorText);
+    } else updateSensorText();
+  });
 
   $('demo').addEventListener('click', function () {
     modalEl.classList.remove('open');
